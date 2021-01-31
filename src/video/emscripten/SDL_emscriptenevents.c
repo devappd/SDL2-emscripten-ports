@@ -637,17 +637,32 @@ Emscripten_HandleResize(int eventType, const EmscriptenUiEvent *uiEvent, void *u
         {
             double w = window_data->window->w;
             double h = window_data->window->h;
+            double scaled_w, scaled_h;
+            int adjusted_w, adjusted_h;
 
             if(window_data->external_size) {
                 emscripten_get_element_css_size(window_data->canvas_id, &w, &h);
             }
 
-            emscripten_set_canvas_element_size(window_data->canvas_id, w * window_data->pixel_ratio, h * window_data->pixel_ratio);
+            scaled_w = SDL_floor(w * window_data->pixel_ratio);
+            scaled_h = SDL_floor(h * window_data->pixel_ratio);
+
+            emscripten_set_canvas_element_size(window_data->canvas_id, scaled_w, scaled_h);
 
             /* set_canvas_size unsets this */
             if (!window_data->external_size && window_data->pixel_ratio != 1.0f) {
                 emscripten_set_element_css_size(window_data->canvas_id, w, h);
             }
+
+            /* get the new size in case the canvas size was adjusted in-call */
+            emscripten_get_canvas_element_size(window_data->canvas_id, &adjusted_w, &adjusted_h);
+
+            if (scaled_w != adjusted_w || scaled_h != adjusted_h) {
+                force = SDL_TRUE;
+            }
+
+            adjusted_w /= window_data->pixel_ratio;
+            adjusted_h /= window_data->pixel_ratio;
 
             if (force) {
                /* force the event to trigger, so pixel ratio changes can be handled */
@@ -655,7 +670,7 @@ Emscripten_HandleResize(int eventType, const EmscriptenUiEvent *uiEvent, void *u
                window_data->window->h = 0;
             }
 
-            SDL_SendWindowEvent(window_data->window, SDL_WINDOWEVENT_RESIZED, w, h);
+            SDL_SendWindowEvent(window_data->window, SDL_WINDOWEVENT_RESIZED, adjusted_w, adjusted_h);
         }
     }
 

@@ -207,6 +207,7 @@ Emscripten_CreateWindow(_THIS, SDL_Window * window)
     SDL_WindowData *wdata;
     double scaled_w, scaled_h;
     double css_w, css_h;
+    int adjusted_w, adjusted_h;
 
     /* Allocate window internal data */
     wdata = (SDL_WindowData *) SDL_calloc(1, sizeof(SDL_WindowData));
@@ -235,10 +236,23 @@ Emscripten_CreateWindow(_THIS, SDL_Window * window)
         /* external css has resized us */
         scaled_w = css_w * wdata->pixel_ratio;
         scaled_h = css_h * wdata->pixel_ratio;
-
-        SDL_SendWindowEvent(window, SDL_WINDOWEVENT_RESIZED, css_w, css_h);
     }
     emscripten_set_canvas_element_size(wdata->canvas_id, scaled_w, scaled_h);
+
+    /* get the new size in case the canvas size was adjusted in-call */
+    emscripten_get_canvas_element_size(wdata->canvas_id, &adjusted_w, &adjusted_h);
+
+    if (adjusted_w != scaled_w || adjusted_h != scaled_h) {
+        adjusted_w /= wdata->pixel_ratio;
+        adjusted_h /= wdata->pixel_ratio;
+
+        /* force resize event */
+        window->w = 0;
+        window->h = 0;
+        SDL_SendWindowEvent(window, SDL_WINDOWEVENT_RESIZED, adjusted_w, adjusted_h);
+    } else if ((window->flags & SDL_WINDOW_RESIZABLE) && wdata->external_size) {
+        SDL_SendWindowEvent(window, SDL_WINDOWEVENT_RESIZED, css_w, css_h);
+    }
 
     /* if the size is not being controlled by css, we need to scale down for hidpi */
     if (!wdata->external_size) {
