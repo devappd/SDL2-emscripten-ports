@@ -316,10 +316,11 @@ Emscripten_HandleMouseMove(int eventType, const EmscriptenMouseEvent *mouseEvent
     static double residualx = 0, residualy = 0;
 
     /* rescale (in case canvas is being scaled)*/
-    double client_w, client_h, xscale, yscale;
-    emscripten_get_element_css_size(window_data->canvas_id, &client_w, &client_h);
-    xscale = window_data->window->w / client_w;
-    yscale = window_data->window->h / client_h;
+    double xscale, yscale;
+    int client_w, client_h;
+    emscripten_get_canvas_element_size(window_data->canvas_id, &client_w, &client_h);
+    xscale = window_data->window->w / (double)client_w * window_data->pixel_ratio;
+    yscale = window_data->window->h / (double)client_h * window_data->pixel_ratio;
 
     if (isPointerLocked) {
         residualx += mouseEvent->movementX * xscale;
@@ -345,7 +346,7 @@ Emscripten_HandleMouseButton(int eventType, const EmscriptenMouseEvent *mouseEve
     Uint8 sdl_button;
     Uint8 sdl_button_state;
     SDL_EventType sdl_event_type;
-    double css_w, css_h;
+    int client_w, client_h;
 
     switch (mouseEvent->button) {
         case 0:
@@ -374,9 +375,12 @@ Emscripten_HandleMouseButton(int eventType, const EmscriptenMouseEvent *mouseEve
     SDL_SendMouseButton(window_data->window, 0, sdl_button_state, sdl_button);
 
     /* Do not consume the event if the mouse is outside of the canvas. */
-    emscripten_get_element_css_size(window_data->canvas_id, &css_w, &css_h);
-    if (mouseEvent->targetX < 0 || mouseEvent->targetX >= css_w ||
-        mouseEvent->targetY < 0 || mouseEvent->targetY >= css_h) {
+    emscripten_get_canvas_element_size(window_data->canvas_id, &client_w, &client_h);
+    client_w /= window_data->pixel_ratio;
+    client_h /= window_data->pixel_ratio;
+
+    if (mouseEvent->targetX < 0 || mouseEvent->targetX >= client_w ||
+        mouseEvent->targetY < 0 || mouseEvent->targetY >= client_h) {
         return 0;
     }
 
@@ -433,7 +437,7 @@ Emscripten_HandleTouch(int eventType, const EmscriptenTouchEvent *touchEvent, vo
 {
     SDL_WindowData *window_data = (SDL_WindowData *) userData;
     int i;
-    double client_w, client_h;
+    int client_w, client_h;
     int preventDefault = 0;
 
     SDL_TouchID deviceId = 1;
@@ -441,7 +445,9 @@ Emscripten_HandleTouch(int eventType, const EmscriptenTouchEvent *touchEvent, vo
          return 0;
     }
 
-    emscripten_get_element_css_size(window_data->canvas_id, &client_w, &client_h);
+    emscripten_get_canvas_element_size(window_data->canvas_id, &client_w, &client_h);
+    client_w /= window_data->pixel_ratio;
+    client_h /= window_data->pixel_ratio;
 
     for (i = 0; i < touchEvent->numTouches; i++) {
         SDL_FingerID id;
@@ -451,8 +457,8 @@ Emscripten_HandleTouch(int eventType, const EmscriptenTouchEvent *touchEvent, vo
             continue;
 
         id = touchEvent->touches[i].identifier;
-        x = touchEvent->touches[i].targetX / client_w;
-        y = touchEvent->touches[i].targetY / client_h;
+        x = touchEvent->touches[i].targetX / (float)client_w;
+        y = touchEvent->touches[i].targetY / (float)client_h;
 
         if (eventType == EMSCRIPTEN_EVENT_TOUCHSTART) {
             SDL_SendTouch(deviceId, id, SDL_TRUE, x, y, 1.0f);
